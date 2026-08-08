@@ -234,49 +234,56 @@
             let gxVal = ghost.x !== undefined ? ghost.x : ghost.X;
             let gyVal = ghost.y !== undefined ? ghost.y : ghost.Y;
 
-            let x = gxVal * tileSize + tileSize / 2;
-            let y = gyVal * tileSize + tileSize / 2;
+            // Arredonda as posições para evitar borrado de sub-pixel no Canvas
+            let x = Math.floor(gxVal * tileSize + tileSize / 2);
+            let y = Math.floor(gyVal * tileSize + tileSize / 2);
             let r = 11;
 
-            let ghostColor = ghost.originalColor || defaultColors[index % defaultColors.length];
+            let ghostColor = ghost.color || ghost.originalColor || defaultColors[index % defaultColors.length];
 
-            let isFrightened = ghost.isFrightened !== undefined ? ghost.isFrightened : ghost.IsFrightened;
-            let frightenedTimeLeft = ghost.frightenedTimeLeft !== undefined ? ghost.frightenedTimeLeft : ghost.FrightenedTimeLeft;
+            // Verificação do Estado Assustado (Frightened / State == 1)
+            let isFrightened = ghost.state === 1 || ghost.state === "Frightened" ||
+                ghost.isFrightened || ghost.IsFrightened;
 
             if (isFrightened) {
-                ghostColor = "#0000FF";
-
-                if (frightenedTimeLeft < 2000 && Math.floor(Date.now() / 200) % 2 === 0) {
-                    ghostColor = "#FFFFFF";
-                }
+                ghostColor = "#0000FF"; // Azul assustado
             }
 
             ctx.save();
-            ctx.beginPath();
 
+            // Removido o shadowBlur excessivo que causava o borrão
+            ctx.shadowBlur = 0;
+
+            // 1. Corpo do Fantasma
+            ctx.beginPath();
             ctx.arc(x, y - 2, r, Math.PI, 0, false);
             ctx.lineTo(x + r, y + r - 2);
             ctx.quadraticCurveTo(x + r * 0.6, y + r + 3, x + r * 0.3, y + r - 2);
             ctx.quadraticCurveTo(x, y + r + 3, x - r * 0.3, y + r - 2);
             ctx.quadraticCurveTo(x - r * 0.6, y + r + 3, x - r, y + r - 2);
             ctx.lineTo(x - r, y - 2);
+            ctx.closePath();
 
             ctx.fillStyle = ghostColor;
             ctx.fill();
 
+            // 2. Olhos dos Fantasmas
             if (!isFrightened) {
+                // Esclera (fundo branco do olho)
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.arc(x - 4, y - 3, 3.5, 0, Math.PI * 2);
                 ctx.arc(x + 4, y - 3, 3.5, 0, Math.PI * 2);
                 ctx.fill();
 
+                // Pupila (azul escura)
                 ctx.fillStyle = "#0000d1";
                 ctx.beginPath();
                 ctx.arc(x - 3, y - 3, 1.8, 0, Math.PI * 2);
                 ctx.arc(x + 5, y - 3, 1.8, 0, Math.PI * 2);
                 ctx.fill();
             } else {
+                // Olhos e boca assustados (laranjas/amarelos)
                 ctx.fillStyle = "#ffb852";
                 ctx.beginPath();
                 ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2);
@@ -287,7 +294,6 @@
             ctx.restore();
         });
     }
-
     // 7. Checa Fim de Jogo
     function checkGameEnd() {
         if (!gameState) return false;

@@ -12,21 +12,17 @@ namespace Game_X.Controllers
             return View();
         }
 
-
-
-        //cria uma partida
+        // Cria uma nova partida
         public IActionResult NewGame()
         {
             Guid gameId = GameManager.CreateGame();
 
-            HttpContext.Session.SetString(
-                "GameId",
-                gameId.ToString());
+            HttpContext.Session.SetString("GameId", gameId.ToString());
 
             return RedirectToAction("Index");
         }
 
-        //recupera a partida;
+        // Recupera a partida atual da sessão
         private GameSession CurrentGame()
         {
             var id = HttpContext.Session.GetString("GameId");
@@ -37,42 +33,39 @@ namespace Game_X.Controllers
             return GameManager.Get(Guid.Parse(id));
         }
 
-
-        //recebe os comandos do teclado;
-        [HttpPost]
+        // Recebe os comandos do teclado do jogador
         [HttpPost]
         public IActionResult Move([FromBody] MoveRequest request)
         {
             var game = CurrentGame();
 
             if (game == null || request == null)
-                return BadRequest();
+                return BadRequest(new { erro = "Sessão inválida ou request nulo" });
 
             if (Enum.TryParse<Direction>(request.Direction, true, out var dir))
             {
-                // Chama a função correta que atualiza X/Y e valida colisão com paredes!
+                // Move o jogador e valida colisões
                 game.Engine.MovePlayer(dir);
             }
 
             return Json(new { sucesso = true, player = game.Engine.Player });
         }
 
-        public class MoveRequest
-        {
-            public string Direction { get; set; }
-        }
-
-        //cria um endpoint, desenha o mapa e os personagens;
-
+        // Endpoint que fornece o estado completo do mapa, entidades e frutas para a UI
         [HttpGet]
         public IActionResult State()
         {
             var game = CurrentGame();
 
+            // Se a sessão expirou ou não existe, cria um novo jogo na hora
             if (game == null)
-                return BadRequest();
+            {
+                Guid newGameId = GameManager.CreateGame();
+                HttpContext.Session.SetString("GameId", newGameId.ToString());
+                game = GameManager.Get(newGameId);
+            }
 
-            // Executa a IA dos fantasmas e atualiza o estado do jogo a cada requisição
+            // Executa o loop do jogo (IA dos fantasmas, power-ups, etc.)
             game.Engine.Update();
 
             var tiles = new List<object>();
@@ -105,7 +98,7 @@ namespace Game_X.Controllers
                 coins = game.Engine.Map.Coins,
                 pellets = game.Engine.Map.PowerPellets,
 
-                // ✅ AGORA O FRONT-END RECEBE A FRUTA!
+                // Envia os dados da fruta bônus
                 bonusFruit = game.Engine.BonusFruit,
 
                 status = game.Engine.Status
@@ -113,4 +106,3 @@ namespace Game_X.Controllers
         }
     }
 }
-

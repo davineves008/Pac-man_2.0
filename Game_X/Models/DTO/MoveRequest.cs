@@ -4,6 +4,6 @@ namespace Game_X.Models.DTO
 {
     public class MoveRequest
     {
-        public Direction Direction { get; set; }
+        public string Direction { get; set; }
     }
 }

@@ -1,6 +1,9 @@
 ﻿using Game_X.Models.Entities;
 using Game_X.Models.Enums;
 using Game_X.Models.Map;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Game_X.Models.Engine
 {
@@ -11,7 +14,7 @@ namespace Game_X.Models.Engine
         public int Y { get; set; } = 17; // Posição Y (abaixo da casinha dos fantasmas)
         public bool Active { get; set; } = false;
         public int Type { get; set; } = 0; // 0: Cereja (100pt), 1: Morango (300pt), 2: Laranja (500pt)...
-        public int Points => (Type + 1) * 200; // Exemplo de pontuação dinâmica por tipo
+        public int Points => (Type + 1) * 200; // Pontuação dinâmica por tipo
     }
 
     public class GameEngine
@@ -26,6 +29,7 @@ namespace Game_X.Models.Engine
         public BonusFruit BonusFruit { get; set; }
 
         private int _coinsCollectedCount = 0;
+        private bool _justSpawnedFruit = false; // Flag para ignorar a coleta no turno de nascimento
 
         public GameEngine(Player player, List<Ghost> ghosts, GameMap map)
         {
@@ -76,13 +80,16 @@ namespace Game_X.Models.Engine
             // Checagens de Coleta e Colisão
             CollectCoin();
             CollectPowerPellet();
-            CollectFruit(); // <-- Nova checagem da fruta
+            CollectFruit();
             CheckGhostCollision();
             CheckVictory();
         }
 
         public void Update()
         {
+            if (Status != GameStatus.Playing)
+                return;
+
             // Checa se o tempo do Modo Poderoso expirou
             if (Player.Powered && DateTime.Now >= Player.PowerUntil)
             {
@@ -109,6 +116,7 @@ namespace Game_X.Models.Engine
                 }
 
                 var direction = GhostAI.GetNextDirection(ghost, Player, Map);
+                ghost.Direction = direction; // Atualiza a direção para sincronizar com o visual do Canvas
 
                 switch (direction)
                 {
@@ -170,22 +178,39 @@ namespace Game_X.Models.Engine
 
         private void SpawnBonusFruit()
         {
-            // 1. Define as coordenadas para o Spawn do Jogador
-            BonusFruit.X = Map.PlayerSpawn.X;
-            BonusFruit.Y = Map.PlayerSpawn.Y;
+            // Posição central abaixo do centro/casa dos fantasmas
+            BonusFruit.X = 13;
+            BonusFruit.Y = 17;
 
-            // 2. Define o tipo (Cereja = 0, Morango = 1, etc.)
-            BonusFruit.Type = (_coinsCollectedCount >= 100) ? 1 : 0;
+            // A cada gatilho de moedas, nasce uma fruta mais valiosa!
+            if (_coinsCollectedCount >= 100)
+                BonusFruit.Type = 3; // Maçã
+            else if (_coinsCollectedCount >= 70)
+                BonusFruit.Type = 2; // Laranja
+            else if (_coinsCollectedCount >= 30)
+                BonusFruit.Type = 1; // Morango
+            else
+                BonusFruit.Type = 0; // Cereja
 
-            // 3. Ativa a fruta
             BonusFruit.Active = true;
+            _justSpawnedFruit = true;
         }
+
         private void CollectFruit()
         {
-            if (BonusFruit.Active && Player.X == BonusFruit.X && Player.Y == BonusFruit.Y)
+            if (BonusFruit != null && BonusFruit.Active)
             {
-                Player.Score += BonusFruit.Points;
-                BonusFruit.Active = false; // Desativa a fruta após ser comida
+                if (_justSpawnedFruit)
+                {
+                    _justSpawnedFruit = false;
+                    return;
+                }
+
+                if (Player.X == BonusFruit.X && Player.Y == BonusFruit.Y)
+                {
+                    Player.Score += BonusFruit.Points;
+                    BonusFruit.Active = false; // Desativa após comer
+                }
             }
         }
 
@@ -220,6 +245,7 @@ namespace Game_X.Models.Engine
                 if (ghost.State == GhostState.Frightened)
                 {
                     ghost.State = GhostState.Dead;
+                    ghost.Reset(); // Reposiciona imediatamente no spawn do fantasma
                     Player.Score += 200;
                     continue;
                 }
@@ -234,8 +260,14 @@ namespace Game_X.Models.Engine
                     }
                     else
                     {
+                        // Reseta o jogador e todos os fantasmas para os spawns iniciais
                         Player.X = Map.PlayerSpawn.X;
                         Player.Y = Map.PlayerSpawn.Y;
+
+                        foreach (var g in Ghosts)
+                        {
+                            g.Reset();
+                        }
                     }
                 }
             }

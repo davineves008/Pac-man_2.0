@@ -20,20 +20,20 @@ namespace Game_X.Models.Engine
 
             var ghosts = new List<Ghost>();
 
-            // Lista estendida de perfis para novos fantasmas
+            // Perfis com cores em Hexadecimal prontas para o Canvas/Front-end
             var ghostProfiles = new[]
             {
-                new { Name = "Blinky", Color = "Red" },
-                new { Name = "Pinky",  Color = "Pink" },
-                new { Name = "Inky",   Color = "Cyan" },
-                new { Name = "Clyde",  Color = "Orange" },
-                new { Name = "Shadow", Color = "Purple" },
-                new { Name = "Speedy", Color = "Green" },
-                new { Name = "Spike",  Color = "Yellow" },
-                new { Name = "Casper", Color = "White" }
+                new { Name = "Blinky", Color = "#FF0000" }, // Vermelho
+                new { Name = "Pinky",  Color = "#FFB8FF" }, // Rosa
+                new { Name = "Inky",   Color = "#00FFFF" }, // Ciano
+                new { Name = "Clyde",  Color = "#FFB852" }, // Laranja
+                new { Name = "Shadow", Color = "#A020F0" }, // Roxo
+                new { Name = "Speedy", Color = "#00FF00" }, // Verde
+                new { Name = "Spike",  Color = "#FFFF00" }, // Amarelo
+                new { Name = "Casper", Color = "#FFFFFF" }  // Branco
             };
 
-            // Loop dinamico: cria um fantasma para cada 'G' do mapa
+            // Instancia dinamicamente um fantasma para cada spawn no mapa
             for (int i = 0; i < map.GhostSpawns.Count; i++)
             {
                 var spawn = map.GhostSpawns[i];
@@ -47,7 +47,7 @@ namespace Game_X.Models.Engine
                     Y = spawn.Y,
                     SpawnX = spawn.X,
                     SpawnY = spawn.Y,
-                    Direction = Direction.Left,
+                    Direction = Direction.Up, // Inicia apontado para cima para facilitar a saída
                     State = GhostState.Normal
                 });
             }
