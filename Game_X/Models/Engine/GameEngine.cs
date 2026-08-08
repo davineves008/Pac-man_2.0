@@ -7,14 +7,22 @@ using System.Linq;
 
 namespace Game_X.Models.Engine
 {
-    // Classe modelo da Fruta Bônus
     public class BonusFruit
     {
-        public int X { get; set; } = 13; // Posição X central do labirinto
-        public int Y { get; set; } = 17; // Posição Y (abaixo da casinha dos fantasmas)
+        public int X { get; set; } = 13;
+        public int Y { get; set; } = 17;
         public bool Active { get; set; } = false;
-        public int Type { get; set; } = 0; // 0: Cereja (100pt), 1: Morango (300pt), 2: Laranja (500pt)...
-        public int Points => (Type + 1) * 200; // Pontuação dinâmica por tipo
+        public int Type { get; set; } = 0;
+        public DateTime? ExpiresAt { get; set; } // Adicionado controle de tempo
+
+        public int Points => Type switch
+        {
+            0 => 100, // Cereja
+            1 => 300, // Morango
+            2 => 500, // Laranja
+            3 => 700, // Maçã
+            _ => 1000
+        };
     }
 
     public class GameEngine
@@ -24,12 +32,10 @@ namespace Game_X.Models.Engine
         public GameMap Map { get; set; }
         public GameStatus Status { get; set; }
         public DateTime StartedAt { get; set; }
-
-        // Propriedade para controlar a Fruta Bônus na sessão
         public BonusFruit BonusFruit { get; set; }
 
         private int _coinsCollectedCount = 0;
-        private bool _justSpawnedFruit = false; // Flag para ignorar a coleta no turno de nascimento
+        private int _ghostsEatenInPowerMode = 0; // Combo de pontos para fantasmas
 
         public GameEngine(Player player, List<Ghost> ghosts, GameMap map)
         {
@@ -41,8 +47,6 @@ namespace Game_X.Models.Engine
             StartedAt = DateTime.Now;
             Status = GameStatus.Playing;
         }
-
-        // --- MÉTODOS PÚBLICOS ---
 
         public void MovePlayer(Direction direction)
         {
@@ -63,7 +67,6 @@ namespace Game_X.Models.Engine
             if (!CanMove(newX, newY))
                 return;
 
-            // Lógica do Túnel do Jogador
             if (newX < 0)
             {
                 newX = Map.Width - 1;
@@ -77,7 +80,6 @@ namespace Game_X.Models.Engine
             Player.Y = newY;
             Player.Direction = direction;
 
-            // Checagens de Coleta e Colisão
             CollectCoin();
             CollectPowerPellet();
             CollectFruit();
@@ -90,10 +92,17 @@ namespace Game_X.Models.Engine
             if (Status != GameStatus.Playing)
                 return;
 
-            // Checa se o tempo do Modo Poderoso expirou
+            // Desativa a fruta bônus se o tempo expirar (10 segundos)
+            if (BonusFruit.Active && BonusFruit.ExpiresAt.HasValue && DateTime.Now >= BonusFruit.ExpiresAt.Value)
+            {
+                BonusFruit.Active = false;
+            }
+
+            // Checa expiração do Power Pellet
             if (Player.Powered && DateTime.Now >= Player.PowerUntil)
             {
                 Player.Powered = false;
+                _ghostsEatenInPowerMode = 0; // Reseta o combo
 
                 foreach (var ghost in Ghosts)
                 {
@@ -116,7 +125,7 @@ namespace Game_X.Models.Engine
                 }
 
                 var direction = GhostAI.GetNextDirection(ghost, Player, Map);
-                ghost.Direction = direction; // Atualiza a direção para sincronizar com o visual do Canvas
+                ghost.Direction = direction;
 
                 switch (direction)
                 {
@@ -126,7 +135,6 @@ namespace Game_X.Models.Engine
                     case Direction.Right: ghost.X++; break;
                 }
 
-                // Lógica do Túnel dos Fantasmas
                 if (ghost.X < 0)
                 {
                     ghost.X = Map.Width - 1;
@@ -139,8 +147,6 @@ namespace Game_X.Models.Engine
 
             CheckGhostCollision();
         }
-
-        // --- MÉTODOS PRIVADOS ---
 
         private bool CanMove(int x, int y)
         {
@@ -169,47 +175,38 @@ namespace Game_X.Models.Engine
 
             _coinsCollectedCount++;
 
-            // Faz surgir a fruta bônus ao comer 30 ou 100 moedas
             if (_coinsCollectedCount == 30 || _coinsCollectedCount == 100)
             {
                 SpawnBonusFruit();
             }
         }
 
-        private void SpawnBonusFruit()
+        public void SpawnBonusFruit()
         {
-            // Posição central abaixo do centro/casa dos fantasmas
             BonusFruit.X = 13;
-            BonusFruit.Y = 17;
+            BonusFruit.Y = 8;
 
-            // A cada gatilho de moedas, nasce uma fruta mais valiosa!
             if (_coinsCollectedCount >= 100)
-                BonusFruit.Type = 3; // Maçã
+                BonusFruit.Type = 3;
             else if (_coinsCollectedCount >= 70)
-                BonusFruit.Type = 2; // Laranja
+                BonusFruit.Type = 2;
             else if (_coinsCollectedCount >= 30)
-                BonusFruit.Type = 1; // Morango
+                BonusFruit.Type = 1;
             else
-                BonusFruit.Type = 0; // Cereja
+                BonusFruit.Type = 0;
 
             BonusFruit.Active = true;
-            _justSpawnedFruit = true;
+            BonusFruit.ExpiresAt = DateTime.Now.AddSeconds(10); // Fruta dura 10 segundos no mapa
         }
 
         private void CollectFruit()
         {
             if (BonusFruit != null && BonusFruit.Active)
             {
-                if (_justSpawnedFruit)
-                {
-                    _justSpawnedFruit = false;
-                    return;
-                }
-
                 if (Player.X == BonusFruit.X && Player.Y == BonusFruit.Y)
                 {
                     Player.Score += BonusFruit.Points;
-                    BonusFruit.Active = false; // Desativa após comer
+                    BonusFruit.Active = false;
                 }
             }
         }
@@ -227,6 +224,7 @@ namespace Game_X.Models.Engine
             pellet.Collected = true;
             Player.Powered = true;
             Player.PowerUntil = DateTime.Now.AddSeconds(pellet.DurationSeconds);
+            _ghostsEatenInPowerMode = 0; // Reseta combo para a nova fruta de poder
 
             foreach (var ghost in Ghosts)
             {
@@ -245,8 +243,13 @@ namespace Game_X.Models.Engine
                 if (ghost.State == GhostState.Frightened)
                 {
                     ghost.State = GhostState.Dead;
-                    ghost.Reset(); // Reposiciona imediatamente no spawn do fantasma
-                    Player.Score += 200;
+                    ghost.Reset();
+
+                    // Multiplicador de combo: 200, 400, 800, 1600...
+                    _ghostsEatenInPowerMode++;
+                    int bonusPoints = (int)Math.Pow(2, _ghostsEatenInPowerMode) * 100;
+                    Player.Score += bonusPoints;
+
                     continue;
                 }
 
@@ -260,7 +263,6 @@ namespace Game_X.Models.Engine
                     }
                     else
                     {
-                        // Reseta o jogador e todos os fantasmas para os spawns iniciais
                         Player.X = Map.PlayerSpawn.X;
                         Player.Y = Map.PlayerSpawn.Y;
 
@@ -269,6 +271,9 @@ namespace Game_X.Models.Engine
                             g.Reset();
                         }
                     }
+
+                    // Interrompe o loop após atingir o jogador para evitar danos múltiplos
+                    break;
                 }
             }
         }

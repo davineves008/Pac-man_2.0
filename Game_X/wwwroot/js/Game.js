@@ -11,6 +11,10 @@
     let mouthSpeed = 0.015; // Velocidade da mastigação constante
     let pulseTime = 0; // Para animação dos Power Pellets
     let isFetching = false; // Flag para evitar requisições encavaladas no polling
+    let animationFrameId = null; // Variável declarada corretamente para o loop
+
+    let floatingTexts = []; // Armazena os textos de pontos flutuantes
+    let lastFruitState = false; // Guardar o estado do frame anterior da fruta
 
     // Tabela de Frutas
     const FRUITS = [
@@ -21,7 +25,65 @@
         { name: "Melancia", score: 1000, color: "#009933", stemColor: "#ff3366" }
     ];
 
-    // 1. Busca o estado do jogo no C#
+    // --- SISTEMA DE TEXTO FLUTUANTE ---
+
+    function addFloatingText(text, tileX, tileY, color = "#ffb703") {
+        floatingTexts.push({
+            text: text,
+            x: tileX * tileSize + tileSize / 2,
+            y: tileY * tileSize,
+            alpha: 1.0,
+            color: color
+        });
+    }
+
+    function drawFloatingTexts() {
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let ft = floatingTexts[i];
+
+            ctx.save();
+            ctx.globalAlpha = ft.alpha;
+            ctx.font = "bold 16px monospace";
+            ctx.fillStyle = ft.color;
+            ctx.textAlign = "center";
+
+            ctx.shadowColor = "#000000";
+            ctx.shadowBlur = 4;
+
+            ctx.fillText(ft.text, ft.x, ft.y);
+            ctx.restore();
+
+            ft.y -= 0.8;
+            ft.alpha -= 0.02;
+
+            if (ft.alpha <= 0) {
+                floatingTexts.splice(i, 1);
+            }
+        }
+    }
+
+    function checkFruitEaten() {
+        if (!gameState) return;
+
+        let bonus = gameState.bonusFruit || gameState.BonusFruit;
+        if (!bonus) return;
+
+        let isActive = bonus.active !== undefined ? bonus.active : bonus.Active;
+        let bx = bonus.x !== undefined ? bonus.x : bonus.X;
+        let by = bonus.y !== undefined ? bonus.y : bonus.Y;
+        let type = bonus.type !== undefined ? bonus.type : bonus.Type;
+
+        // Se no frame anterior estava ativa e agora sumiu: Pac-Man comeu!
+        if (lastFruitState && !isActive) {
+            let fruitInfo = FRUITS[type] || FRUITS[0];
+            addFloatingText(`+${fruitInfo.score}`, bx, by, "#00ffcc");
+        }
+
+        lastFruitState = isActive;
+    }
+
+    // --- REQUISIÇÕES AO BACKEND ---
+
     async function fetchGameState() {
         if (isFetching) return;
         isFetching = true;
@@ -51,13 +113,14 @@
         }
     }
 
-    // 2. Desenha o Mapa (Paredes, Moedas e Power Pellets)
+    // --- FUNÇÕES DE DESENHO (MAPA, FRUTA, PACMAN, HUD) ---
+
     function drawMap() {
         if (!gameState) return;
 
         pulseTime += 0.05;
 
-        // A. Paredes
+        // Paredes
         if (gameState.tiles) {
             gameState.tiles.forEach(tile => {
                 let x = tile.x * tileSize;
@@ -74,7 +137,7 @@
             });
         }
 
-        // B. Moedas
+        // Moedas
         if (gameState.coins) {
             gameState.coins.forEach(coin => {
                 let isCollected = coin.collected !== undefined ? coin.collected : coin.Collected;
@@ -96,7 +159,7 @@
             });
         }
 
-        // C. Power Pellets
+        // Power Pellets
         if (gameState.pellets) {
             gameState.pellets.forEach(pellet => {
                 let isCollected = pellet.collected !== undefined ? pellet.collected : pellet.Collected;
@@ -121,7 +184,6 @@
         }
     }
 
-    // 3. Desenha Fruta Bônus (Com verificação robusta de maiúsculas/minúsculas)
     function drawBonusFruit() {
         if (!gameState) return;
 
@@ -162,7 +224,6 @@
         ctx.restore();
     }
 
-    // 4. Interface de Vidas e Pontuação (HUD)
     function drawHUD() {
         if (!gameState || !gameState.player) return;
 
@@ -191,7 +252,6 @@
         }
     }
 
-    // 5. Desenha o Pac-Man
     function drawPlayer() {
         if (!gameState || !gameState.player) return;
 
@@ -224,7 +284,6 @@
         ctx.restore();
     }
 
-    // 6. Desenha Fantasmas
     function drawGhosts() {
         if (!gameState || !gameState.ghosts) return;
 
@@ -234,27 +293,23 @@
             let gxVal = ghost.x !== undefined ? ghost.x : ghost.X;
             let gyVal = ghost.y !== undefined ? ghost.y : ghost.Y;
 
-            // Arredonda as posições para evitar borrado de sub-pixel no Canvas
             let x = Math.floor(gxVal * tileSize + tileSize / 2);
             let y = Math.floor(gyVal * tileSize + tileSize / 2);
             let r = 11;
 
             let ghostColor = ghost.color || ghost.originalColor || defaultColors[index % defaultColors.length];
 
-            // Verificação do Estado Assustado (Frightened / State == 1)
             let isFrightened = ghost.state === 1 || ghost.state === "Frightened" ||
                 ghost.isFrightened || ghost.IsFrightened;
 
             if (isFrightened) {
-                ghostColor = "#0000FF"; // Azul assustado
+                ghostColor = "#0000FF";
             }
 
             ctx.save();
-
-            // Removido o shadowBlur excessivo que causava o borrão
             ctx.shadowBlur = 0;
 
-            // 1. Corpo do Fantasma
+            // Corpo
             ctx.beginPath();
             ctx.arc(x, y - 2, r, Math.PI, 0, false);
             ctx.lineTo(x + r, y + r - 2);
@@ -267,23 +322,20 @@
             ctx.fillStyle = ghostColor;
             ctx.fill();
 
-            // 2. Olhos dos Fantasmas
+            // Olhos
             if (!isFrightened) {
-                // Esclera (fundo branco do olho)
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.arc(x - 4, y - 3, 3.5, 0, Math.PI * 2);
                 ctx.arc(x + 4, y - 3, 3.5, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Pupila (azul escura)
                 ctx.fillStyle = "#0000d1";
                 ctx.beginPath();
                 ctx.arc(x - 3, y - 3, 1.8, 0, Math.PI * 2);
                 ctx.arc(x + 5, y - 3, 1.8, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                // Olhos e boca assustados (laranjas/amarelos)
                 ctx.fillStyle = "#ffb852";
                 ctx.beginPath();
                 ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2);
@@ -294,7 +346,7 @@
             ctx.restore();
         });
     }
-    // 7. Checa Fim de Jogo
+
     function checkGameEnd() {
         if (!gameState) return false;
 
@@ -337,7 +389,8 @@
         return false;
     }
 
-    // 8. Captura de Teclas
+    // --- INPUTS E CONTROLES ---
+
     document.addEventListener("keydown", async (e) => {
         if (["Space", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code) ||
             [" ", "Enter"].includes(e.key)) {
@@ -345,7 +398,6 @@
         }
 
         let status = gameState ? (gameState.status !== undefined ? gameState.status : gameState.Status) : null;
-
         let isEnded = status === "GameOver" || status === 2 || status === "gameOver" ||
             status === "Victory" || status === 3 || status === "victory";
 
@@ -386,9 +438,12 @@
         }
     });
 
-    // 9. Loop de Renderização
+    // --- LOOP PRINCIPAL DE RENDERIZAÇÃO ---
+
     function renderLoop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        checkFruitEaten();
 
         drawMap();
         drawBonusFruit();
@@ -396,14 +451,17 @@
         drawGhosts();
         drawHUD();
 
+        drawFloatingTexts();
+
         if (checkGameEnd()) {
             return;
         }
 
-        requestAnimationFrame(renderLoop);
+        animationFrameId = requestAnimationFrame(renderLoop);
     }
 
-    // Inicialização do Jogo
+    // --- INICIALIZAÇÃO E POLLING ---
+
     async function init() {
         await fetchGameState();
         renderLoop();
@@ -411,7 +469,6 @@
 
     init();
 
-    // Loop de sincronização com backend
     setInterval(async () => {
         let status = gameState ? (gameState.status !== undefined ? gameState.status : gameState.Status) : null;
 

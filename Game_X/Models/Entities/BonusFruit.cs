@@ -17,5 +17,16 @@
             4 => 1000, // Melancia
             _ => 100
         };
+
+        // Propriedade utilitária opcional para nomear no HUD ou Logs
+        public string Name => Type switch
+        {
+            0 => "Cereja",
+            1 => "Morango",
+            2 => "Laranja",
+            3 => "Maçã",
+            4 => "Melancia",
+            _ => "Desconhecida"
+        };
     }
 }
