@@ -6,15 +6,30 @@
     const tileSize = 30;
 
     let gameState = null;
-    let currentDirection = "Right"; // Guarda a última direção apertada
-    let mouthAngle = 0.2; // Abertura inicial da boca
-    let mouthSpeed = 0.015; // Velocidade da mastigação constante
-    let pulseTime = 0; // Para animação dos Power Pellets
-    let isFetching = false; // Flag para evitar requisições encavaladas no polling
-    let animationFrameId = null; // Variável declarada corretamente para o loop
+    let currentDirection = "Right";
+    let mouthAngle = 0.2;
+    let mouthSpeed = 0.015;
+    let pulseTime = 0;
+    let isFetching = false;
+    let animationFrameId = null;
 
-    let floatingTexts = []; // Armazena os textos de pontos flutuantes
-    let lastFruitState = false; // Guardar o estado do frame anterior da fruta
+    let floatingTexts = [];
+    let lastFruitState = false;
+    let previousLives = null;
+
+    // --- RASTREAMENTO E ESTADOS DE JOGO ---
+    const collectedCoinIds = new Set();
+    const collectedPelletIds = new Set();
+
+    let isGameStarted = false;
+    let isIntroPlaying = false;
+
+    // Controle da animação de Morte
+    let isDying = false;
+    let deathProgress = 0;
+    let deathCallback = null;
+    let deathX = 0;
+    let deathY = 0;
 
     // Tabela de Frutas
     const FRUITS = [
@@ -25,8 +40,194 @@
         { name: "Melancia", score: 1000, color: "#009933", stemColor: "#ff3366" }
     ];
 
-    // --- SISTEMA DE TEXTO FLUTUANTE ---
+    // --- SISTEMA DE ÁUDIO (SINTETIZADOR CLÁSSICO 8-BIT) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    let wakaToggle = false;
 
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    const NOTES = {
+        B4: 493.88, C5: 523.25, Csharp5: 554.37, D5: 587.33,
+        Dsharp5: 622.25, E5: 659.25, F5: 698.46, Fsharp5: 739.99, G5: 783.99,
+        Gsharp5: 830.61, A5: 880.00, B5: 987.77, C6: 1046.50
+    };
+
+    const INTRO_MELODY = [
+        { note: NOTES.B4, duration: 0.12 },
+        { note: NOTES.B5, duration: 0.12 },
+        { note: NOTES.Fsharp5, duration: 0.12 },
+        { note: NOTES.Dsharp5, duration: 0.12 },
+        { note: NOTES.B5, duration: 0.06 },
+        { note: NOTES.Fsharp5, duration: 0.18 },
+        { note: NOTES.Dsharp5, duration: 0.24 },
+
+        { note: NOTES.C5, duration: 0.12 },
+        { note: NOTES.C6, duration: 0.12 },
+        { note: NOTES.G5, duration: 0.12 },
+        { note: NOTES.E5, duration: 0.12 },
+        { note: NOTES.C6, duration: 0.06 },
+        { note: NOTES.G5, duration: 0.18 },
+        { note: NOTES.E5, duration: 0.24 },
+
+        { note: NOTES.B4, duration: 0.12 },
+        { note: NOTES.B5, duration: 0.12 },
+        { note: NOTES.Fsharp5, duration: 0.12 },
+        { note: NOTES.Dsharp5, duration: 0.12 },
+        { note: NOTES.B5, duration: 0.06 },
+        { note: NOTES.Fsharp5, duration: 0.18 },
+        { note: NOTES.Dsharp5, duration: 0.24 },
+
+        { note: NOTES.Dsharp5, duration: 0.06 },
+        { note: NOTES.E5, duration: 0.06 },
+        { note: NOTES.F5, duration: 0.06 },
+        { note: NOTES.Fsharp5, duration: 0.12 },
+        { note: NOTES.G5, duration: 0.06 },
+        { note: NOTES.Gsharp5, duration: 0.06 },
+        { note: NOTES.A5, duration: 0.06 },
+        { note: NOTES.B5, duration: 0.30 }
+    ];
+
+    function playIntroTheme(onComplete) {
+        initAudio();
+        if (!audioCtx) return;
+
+        let time = audioCtx.currentTime + 0.05;
+
+        INTRO_MELODY.forEach(step => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = "square";
+            osc.frequency.setValueAtTime(step.note, time);
+
+            gain.gain.setValueAtTime(0.12, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + step.duration - 0.01);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(time);
+            osc.stop(time + step.duration);
+
+            time += step.duration;
+        });
+
+        if (onComplete) {
+            setTimeout(onComplete, (time - audioCtx.currentTime) * 1000);
+        }
+    }
+
+    // --- EFEITOS SONOROS DE JOGO ---
+    function playWakaSound() {
+        initAudio();
+        if (!audioCtx) return;
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = "triangle";
+        const now = audioCtx.currentTime;
+        const duration = 0.07;
+
+        if (wakaToggle) {
+            osc.frequency.setValueAtTime(140, now);
+            osc.frequency.exponentialRampToValueAtTime(440, now + duration);
+        } else {
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.exponentialRampToValueAtTime(140, now + duration);
+        }
+
+        wakaToggle = !wakaToggle;
+
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration);
+    }
+
+    function playBonusSound() {
+        initAudio();
+        if (!audioCtx) return;
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = "sine";
+        const now = audioCtx.currentTime;
+
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.25);
+    }
+
+    function playPowerPelletSound() {
+        initAudio();
+        if (!audioCtx) return;
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = "sawtooth";
+        const now = audioCtx.currentTime;
+
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.18);
+
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.18);
+    }
+
+    function playDeathSound() {
+        initAudio();
+        if (!audioCtx) return;
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = "sawtooth";
+        const now = audioCtx.currentTime;
+        const duration = 0.8;
+
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + duration);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration);
+    }
+
+    // --- TEXTOS FLUTUANTES ---
     function addFloatingText(text, tileX, tileY, color = "#ffb703") {
         floatingTexts.push({
             text: text,
@@ -73,17 +274,16 @@
         let by = bonus.y !== undefined ? bonus.y : bonus.Y;
         let type = bonus.type !== undefined ? bonus.type : bonus.Type;
 
-        // Se no frame anterior estava ativa e agora sumiu: Pac-Man comeu!
         if (lastFruitState && !isActive) {
             let fruitInfo = FRUITS[type] || FRUITS[0];
             addFloatingText(`+${fruitInfo.score}`, bx, by, "#00ffcc");
+            playBonusSound();
         }
 
         lastFruitState = isActive;
     }
 
     // --- REQUISIÇÕES AO BACKEND ---
-
     async function fetchGameState() {
         if (isFetching) return;
         isFetching = true;
@@ -92,7 +292,7 @@
             let response = await fetch('/Game/State');
 
             if (response.status === 400) {
-                await fetch('/Game/NewGame');
+                await fetch('/Game/NewGame', { method: 'POST' });
                 response = await fetch('/Game/State');
             }
 
@@ -104,6 +304,14 @@
                     canvas.height = data.height * tileSize;
                 }
 
+                if (data.player) {
+                    let currentLives = data.player.lives !== undefined ? data.player.lives : data.player.Lives;
+                    if (previousLives !== null && currentLives < previousLives && currentLives >= 0) {
+                        triggerPlayerDeath();
+                    }
+                    previousLives = currentLives;
+                }
+
                 gameState = data;
             }
         } catch (error) {
@@ -113,14 +321,12 @@
         }
     }
 
-    // --- FUNÇÕES DE DESENHO (MAPA, FRUTA, PACMAN, HUD) ---
-
+    // --- FUNÇÕES DE DESENHO ---
     function drawMap() {
         if (!gameState) return;
 
         pulseTime += 0.05;
 
-        // Paredes
         if (gameState.tiles) {
             gameState.tiles.forEach(tile => {
                 let x = tile.x * tileSize;
@@ -137,10 +343,15 @@
             });
         }
 
-        // Moedas
         if (gameState.coins) {
-            gameState.coins.forEach(coin => {
+            gameState.coins.forEach((coin, index) => {
                 let isCollected = coin.collected !== undefined ? coin.collected : coin.Collected;
+                let coinId = coin.id !== undefined ? coin.id : index;
+
+                if (isCollected && !collectedCoinIds.has(coinId)) {
+                    collectedCoinIds.add(coinId);
+                    if (isGameStarted) playWakaSound();
+                }
 
                 if (!isCollected) {
                     let cx = (coin.x !== undefined ? coin.x : coin.X) * tileSize + tileSize / 2;
@@ -159,10 +370,15 @@
             });
         }
 
-        // Power Pellets
         if (gameState.pellets) {
-            gameState.pellets.forEach(pellet => {
+            gameState.pellets.forEach((pellet, index) => {
                 let isCollected = pellet.collected !== undefined ? pellet.collected : pellet.Collected;
+                let pelletId = pellet.id !== undefined ? pellet.id : index;
+
+                if (isCollected && !collectedPelletIds.has(pelletId)) {
+                    collectedPelletIds.add(pelletId);
+                    if (isGameStarted) playPowerPelletSound();
+                }
 
                 if (!isCollected) {
                     let px = (pellet.x !== undefined ? pellet.x : pellet.X) * tileSize + tileSize / 2;
@@ -202,7 +418,6 @@
         let fruit = FRUITS[type] || FRUITS[0];
 
         ctx.save();
-
         ctx.shadowColor = fruit.color;
         ctx.shadowBlur = 8;
 
@@ -252,28 +467,66 @@
         }
     }
 
+    function triggerPlayerDeath(onDeathComplete) {
+        if (!gameState || !gameState.player) return;
+
+        // Congela a posição exatamente de onde o Pac-Man morreu
+        deathX = gameState.player.x !== undefined ? gameState.player.x : gameState.player.X;
+        deathY = gameState.player.y !== undefined ? gameState.player.y : gameState.player.Y;
+
+        isDying = true;
+        deathProgress = 0;
+        deathCallback = onDeathComplete || null;
+        playDeathSound();
+    }
+
     function drawPlayer() {
         if (!gameState || !gameState.player) return;
 
-        let pxVal = gameState.player.x !== undefined ? gameState.player.x : gameState.player.X;
-        let pyVal = gameState.player.y !== undefined ? gameState.player.y : gameState.player.Y;
+        // Posição visual
+        let pxVal = isDying ? deathX : (gameState.player.x !== undefined ? gameState.player.x : gameState.player.X);
+        let pyVal = isDying ? deathY : (gameState.player.y !== undefined ? gameState.player.y : gameState.player.Y);
 
         let px = pxVal * tileSize + tileSize / 2;
         let py = pyVal * tileSize + tileSize / 2;
 
+        ctx.save();
+        ctx.translate(px, py);
+
+        // 1. ANIMAÇÃO DE MORTE
+        if (isDying) {
+            let deathAngle = deathProgress * Math.PI;
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, deathAngle, Math.PI * 2 - deathAngle);
+            ctx.lineTo(0, 0);
+            ctx.fillStyle = "#ffe600";
+            ctx.fill();
+            ctx.restore();
+
+            deathProgress += 0.02;
+            if (deathProgress >= 1) {
+                isDying = false; // Fim da animação!
+                if (deathCallback) deathCallback();
+            }
+            return;
+        }
+
+        // 2. DESENHO NORMAL DO PAC-MAN (Boca animada)
         mouthAngle += mouthSpeed;
-        if (mouthAngle > 0.35 || mouthAngle < 0.03) {
+        if (mouthAngle > 0.35 || mouthAngle < 0.05) {
             mouthSpeed = -mouthSpeed;
         }
 
-        let rotationAngle = 0;
-        if (currentDirection === "Down") rotationAngle = Math.PI / 2;
-        if (currentDirection === "Left") rotationAngle = Math.PI;
-        if (currentDirection === "Up") rotationAngle = (3 * Math.PI) / 2;
+        let rotation = 0;
+        if (currentDirection === "Up") rotation = -Math.PI / 2;
+        if (currentDirection === "Down") rotation = Math.PI / 2;
+        if (currentDirection === "Left") rotation = Math.PI;
 
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(rotationAngle);
+        ctx.rotate(rotation);
+
+        ctx.shadowColor = "#ffe600";
+        ctx.shadowBlur = 6;
 
         ctx.beginPath();
         ctx.arc(0, 0, 12, mouthAngle * Math.PI, (2 - mouthAngle) * Math.PI);
@@ -309,7 +562,6 @@
             ctx.save();
             ctx.shadowBlur = 0;
 
-            // Corpo
             ctx.beginPath();
             ctx.arc(x, y - 2, r, Math.PI, 0, false);
             ctx.lineTo(x + r, y + r - 2);
@@ -322,7 +574,6 @@
             ctx.fillStyle = ghostColor;
             ctx.fill();
 
-            // Olhos
             if (!isFrightened) {
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
@@ -332,8 +583,8 @@
 
                 ctx.fillStyle = "#0000d1";
                 ctx.beginPath();
-                ctx.arc(x - 3, y - 3, 1.8, 0, Math.PI * 2);
-                ctx.arc(x + 5, y - 3, 1.8, 0, Math.PI * 2);
+                ctx.arc(x - 4, y - 3, 1.8, 0, Math.PI * 2);
+                ctx.arc(x + 4, y - 3, 1.8, 0, Math.PI * 2);
                 ctx.fill();
             } else {
                 ctx.fillStyle = "#ffb852";
@@ -345,6 +596,45 @@
 
             ctx.restore();
         });
+    }
+
+    function drawStartOverlay() {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.textAlign = "center";
+        pulseTime += 0.08;
+
+        if (isIntroPlaying) {
+            const showReady = Math.floor(pulseTime * 4) % 2 === 0;
+
+            if (showReady) {
+                ctx.fillStyle = "#ffe600";
+                ctx.font = "bold 28px monospace";
+                ctx.shadowColor = "#ffe600";
+                ctx.shadowBlur = 10;
+                ctx.fillText("READY!", canvas.width / 2, canvas.height / 2);
+                ctx.shadowBlur = 0;
+            }
+        } else {
+            ctx.fillStyle = "#ffe600";
+            ctx.font = "bold 26px monospace";
+            ctx.shadowColor = "#ffe600";
+            ctx.shadowBlur = 8;
+            ctx.fillText("PAC-MAN", canvas.width / 2, canvas.height / 2 - 30);
+            ctx.shadowBlur = 0;
+
+            const textAlpha = Math.abs(Math.sin(pulseTime * 2));
+            ctx.save();
+            ctx.globalAlpha = textAlpha;
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "14px monospace";
+            ctx.fillText("PRESSIONE ENTER OU ESPAÇO", canvas.width / 2, canvas.height / 2 + 15);
+            ctx.fillText("PARA INICIAR", canvas.width / 2, canvas.height / 2 + 35);
+            ctx.restore();
+        }
+
+        ctx.textAlign = "start";
     }
 
     function checkGameEnd() {
@@ -389,12 +679,24 @@
         return false;
     }
 
-    // --- INPUTS E CONTROLES ---
-
+    // --- CONTROLES ---
     document.addEventListener("keydown", async (e) => {
+        initAudio();
+
         if (["Space", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code) ||
             [" ", "Enter"].includes(e.key)) {
             e.preventDefault();
+        }
+
+        if (!isGameStarted && !isIntroPlaying) {
+            if (e.key === "Enter" || e.key === " " || e.code === "Space" || e.code === "Enter") {
+                isIntroPlaying = true;
+                playIntroTheme(() => {
+                    isIntroPlaying = false;
+                    isGameStarted = true;
+                });
+            }
+            return;
         }
 
         let status = gameState ? (gameState.status !== undefined ? gameState.status : gameState.Status) : null;
@@ -405,7 +707,20 @@
             try {
                 await fetch('/Game/NewGame', { method: 'POST' });
                 gameState = null;
+                previousLives = null;
+                collectedCoinIds.clear();
+                collectedPelletIds.clear();
+                floatingTexts = [];
+                isGameStarted = false;
+                isIntroPlaying = true;
+
                 await fetchGameState();
+
+                playIntroTheme(() => {
+                    isIntroPlaying = false;
+                    isGameStarted = true;
+                });
+
                 requestAnimationFrame(renderLoop);
             } catch (err) {
                 console.error("Erro ao reiniciar jogo:", err);
@@ -413,7 +728,7 @@
             return;
         }
 
-        if (isEnded) return;
+        if (isEnded || !isGameStarted || isDying) return;
 
         let direction = null;
         if (e.key === "ArrowUp" || e.code === "ArrowUp") direction = "Up";
@@ -439,7 +754,6 @@
     });
 
     // --- LOOP PRINCIPAL DE RENDERIZAÇÃO ---
-
     function renderLoop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -453,6 +767,12 @@
 
         drawFloatingTexts();
 
+        if (!isGameStarted) {
+            drawStartOverlay();
+            animationFrameId = requestAnimationFrame(renderLoop);
+            return;
+        }
+
         if (checkGameEnd()) {
             return;
         }
@@ -461,7 +781,6 @@
     }
 
     // --- INICIALIZAÇÃO E POLLING ---
-
     async function init() {
         await fetchGameState();
         renderLoop();
@@ -469,7 +788,10 @@
 
     init();
 
+    // Polling contínuo travado durante a morte do jogador
     setInterval(async () => {
+        if (!isGameStarted || isDying) return;
+
         let status = gameState ? (gameState.status !== undefined ? gameState.status : gameState.Status) : null;
 
         if (status !== "GameOver" && status !== 2 && status !== "gameOver" &&
