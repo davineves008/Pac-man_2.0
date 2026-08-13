@@ -14,6 +14,7 @@
     let animationFrameId = null;
 
     let floatingTexts = [];
+    let particles = [];
     let lastFruitState = false;
     let previousLives = null;
 
@@ -227,7 +228,45 @@
         osc.stop(now + duration);
     }
 
-    // --- TEXTOS FLUTUANTES ---
+    // --- SISTEMA DE PARTÍCULAS E TEXTOS FLUTUANTES ---
+    function addParticles(x, y, color = "#ffb703", count = 8) {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 2 + 1;
+            particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 1.0,
+                color: color,
+                size: Math.random() * 3 + 2
+            });
+        }
+    }
+
+    function drawParticles() {
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= 0.04;
+
+            if (p.alpha <= 0) {
+                particles.splice(i, 1);
+            }
+        }
+    }
+
     function addFloatingText(text, tileX, tileY, color = "#ffb703") {
         floatingTexts.push({
             text: text,
@@ -276,7 +315,11 @@
 
         if (lastFruitState && !isActive) {
             let fruitInfo = FRUITS[type] || FRUITS[0];
+            let px = bx * tileSize + tileSize / 2;
+            let py = by * tileSize + tileSize / 2;
+
             addFloatingText(`+${fruitInfo.score}`, bx, by, "#00ffcc");
+            addParticles(px, py, fruitInfo.color, 12);
             playBonusSound();
         }
 
@@ -333,12 +376,18 @@
                 let y = tile.y * tileSize;
 
                 if (tile.type === 1 || tile.type === "Wall" || tile.type === "wall") {
-                    ctx.fillStyle = "#0d1b2a";
-                    ctx.fillRect(x, y, tileSize, tileSize);
+                    ctx.save();
+                    ctx.fillStyle = "#091322";
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileSize, tileSize, 4);
+                    ctx.fill();
 
                     ctx.strokeStyle = "#1e90ff";
                     ctx.lineWidth = 2;
-                    ctx.strokeRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+                    ctx.shadowColor = "#1e90ff";
+                    ctx.shadowBlur = 4;
+                    ctx.stroke();
+                    ctx.restore();
                 }
             });
         }
@@ -348,15 +397,18 @@
                 let isCollected = coin.collected !== undefined ? coin.collected : coin.Collected;
                 let coinId = coin.id !== undefined ? coin.id : index;
 
+                let cx = (coin.x !== undefined ? coin.x : coin.X) * tileSize + tileSize / 2;
+                let cy = (coin.y !== undefined ? coin.y : coin.Y) * tileSize + tileSize / 2;
+
                 if (isCollected && !collectedCoinIds.has(coinId)) {
                     collectedCoinIds.add(coinId);
-                    if (isGameStarted) playWakaSound();
+                    if (isGameStarted) {
+                        playWakaSound();
+                        addParticles(cx, cy, "#ffb703", 5);
+                    }
                 }
 
                 if (!isCollected) {
-                    let cx = (coin.x !== undefined ? coin.x : coin.X) * tileSize + tileSize / 2;
-                    let cy = (coin.y !== undefined ? coin.y : coin.Y) * tileSize + tileSize / 2;
-
                     ctx.save();
                     ctx.shadowColor = "#ffb703";
                     ctx.shadowBlur = 6;
@@ -375,15 +427,18 @@
                 let isCollected = pellet.collected !== undefined ? pellet.collected : pellet.Collected;
                 let pelletId = pellet.id !== undefined ? pellet.id : index;
 
+                let px = (pellet.x !== undefined ? pellet.x : pellet.X) * tileSize + tileSize / 2;
+                let py = (pellet.y !== undefined ? pellet.y : pellet.Y) * tileSize + tileSize / 2;
+
                 if (isCollected && !collectedPelletIds.has(pelletId)) {
                     collectedPelletIds.add(pelletId);
-                    if (isGameStarted) playPowerPelletSound();
+                    if (isGameStarted) {
+                        playPowerPelletSound();
+                        addParticles(px, py, "#ffffff", 10);
+                    }
                 }
 
                 if (!isCollected) {
-                    let px = (pellet.x !== undefined ? pellet.x : pellet.X) * tileSize + tileSize / 2;
-                    let py = (pellet.y !== undefined ? pellet.y : pellet.Y) * tileSize + tileSize / 2;
-
                     let radius = 6.5 + Math.sin(pulseTime * 2) * 1.5;
 
                     ctx.save();
@@ -445,7 +500,7 @@
         let score = gameState.player.score !== undefined ? gameState.player.score : gameState.player.Score;
         let lives = gameState.player.lives !== undefined ? gameState.player.lives : gameState.player.Lives;
 
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
         ctx.fillRect(0, 0, canvas.width, 26);
 
         ctx.font = "bold 14px monospace";
@@ -470,7 +525,6 @@
     function triggerPlayerDeath(onDeathComplete) {
         if (!gameState || !gameState.player) return;
 
-        // Congela a posição exatamente de onde o Pac-Man morreu
         deathX = gameState.player.x !== undefined ? gameState.player.x : gameState.player.X;
         deathY = gameState.player.y !== undefined ? gameState.player.y : gameState.player.Y;
 
@@ -483,7 +537,6 @@
     function drawPlayer() {
         if (!gameState || !gameState.player) return;
 
-        // Posição visual
         let pxVal = isDying ? deathX : (gameState.player.x !== undefined ? gameState.player.x : gameState.player.X);
         let pyVal = isDying ? deathY : (gameState.player.y !== undefined ? gameState.player.y : gameState.player.Y);
 
@@ -504,9 +557,9 @@
             ctx.fill();
             ctx.restore();
 
-            deathProgress += 0.02;
+            deathProgress += 0.025;
             if (deathProgress >= 1) {
-                isDying = false; // Fim da animação!
+                isDying = false;
                 if (deathCallback) deathCallback();
             }
             return;
@@ -556,7 +609,9 @@
                 ghost.isFrightened || ghost.IsFrightened;
 
             if (isFrightened) {
-                ghostColor = "#0000FF";
+                // Pisca no final do tempo assustado
+                let isFlashing = Math.floor(pulseTime * 6) % 2 === 0;
+                ghostColor = isFlashing ? "#ffffff" : "#0000FF";
             }
 
             ctx.save();
@@ -574,17 +629,26 @@
             ctx.fillStyle = ghostColor;
             ctx.fill();
 
+            // Direção dos olhos
+            let eyeOffsetX = 0;
+            let eyeOffsetY = 0;
+
+            if (ghost.direction === "Left") eyeOffsetX = -2;
+            if (ghost.direction === "Right") eyeOffsetX = 2;
+            if (ghost.direction === "Up") eyeOffsetY = -2;
+            if (ghost.direction === "Down") eyeOffsetY = 2;
+
             if (!isFrightened) {
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
-                ctx.arc(x - 4, y - 3, 3.5, 0, Math.PI * 2);
-                ctx.arc(x + 4, y - 3, 3.5, 0, Math.PI * 2);
+                ctx.arc(x - 4 + eyeOffsetX, y - 3 + eyeOffsetY, 3.5, 0, Math.PI * 2);
+                ctx.arc(x + 4 + eyeOffsetX, y - 3 + eyeOffsetY, 3.5, 0, Math.PI * 2);
                 ctx.fill();
 
                 ctx.fillStyle = "#0000d1";
                 ctx.beginPath();
-                ctx.arc(x - 4, y - 3, 1.8, 0, Math.PI * 2);
-                ctx.arc(x + 4, y - 3, 1.8, 0, Math.PI * 2);
+                ctx.arc(x - 4 + eyeOffsetX * 1.5, y - 3 + eyeOffsetY * 1.5, 1.8, 0, Math.PI * 2);
+                ctx.arc(x + 4 + eyeOffsetX * 1.5, y - 3 + eyeOffsetY * 1.5, 1.8, 0, Math.PI * 2);
                 ctx.fill();
             } else {
                 ctx.fillStyle = "#ffb852";
@@ -629,7 +693,7 @@
             ctx.globalAlpha = textAlpha;
             ctx.fillStyle = "#ffffff";
             ctx.font = "14px monospace";
-            ctx.fillText("PRESSIONE ENTER OU ESPAÇO", canvas.width / 2, canvas.height / 2 + 15);
+            ctx.fillText("PRESSIONE ENTER, ESPAÇO OU TOQUE", canvas.width / 2, canvas.height / 2 + 15);
             ctx.fillText("PARA INICIAR", canvas.width / 2, canvas.height / 2 + 35);
             ctx.restore();
         }
@@ -679,23 +743,33 @@
         return false;
     }
 
-    // --- CONTROLES ---
-    document.addEventListener("keydown", async (e) => {
+    // --- CONTROLES (TECLADO + WASD + TOUCH/SWIPE) ---
+    async function sendMoveRequest(direction) {
+        if (!direction || isDying || !isGameStarted) return;
+        currentDirection = direction;
+
+        try {
+            await fetch('/Game/Move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direction: direction })
+            });
+
+            await fetchGameState();
+        } catch (err) {
+            console.error("Erro ao mover:", err);
+        }
+    }
+
+    async function handleStartOrRestart() {
         initAudio();
 
-        if (["Space", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code) ||
-            [" ", "Enter"].includes(e.key)) {
-            e.preventDefault();
-        }
-
         if (!isGameStarted && !isIntroPlaying) {
-            if (e.key === "Enter" || e.key === " " || e.code === "Space" || e.code === "Enter") {
-                isIntroPlaying = true;
-                playIntroTheme(() => {
-                    isIntroPlaying = false;
-                    isGameStarted = true;
-                });
-            }
+            isIntroPlaying = true;
+            playIntroTheme(() => {
+                isIntroPlaying = false;
+                isGameStarted = true;
+            });
             return;
         }
 
@@ -703,7 +777,7 @@
         let isEnded = status === "GameOver" || status === 2 || status === "gameOver" ||
             status === "Victory" || status === 3 || status === "victory";
 
-        if (isEnded && (e.key === "Enter" || e.key === " " || e.code === "Space" || e.code === "Enter")) {
+        if (isEnded) {
             try {
                 await fetch('/Game/NewGame', { method: 'POST' });
                 gameState = null;
@@ -711,6 +785,7 @@
                 collectedCoinIds.clear();
                 collectedPelletIds.clear();
                 floatingTexts = [];
+                particles = [];
                 isGameStarted = false;
                 isIntroPlaying = true;
 
@@ -725,33 +800,68 @@
             } catch (err) {
                 console.error("Erro ao reiniciar jogo:", err);
             }
+        }
+    }
+
+    document.addEventListener("keydown", async (e) => {
+        initAudio();
+
+        if (["Space", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"].includes(e.code) ||
+            [" ", "Enter"].includes(e.key)) {
+            e.preventDefault();
+        }
+
+        if (e.key === "Enter" || e.key === " " || e.code === "Space" || e.code === "Enter") {
+            await handleStartOrRestart();
             return;
         }
 
-        if (isEnded || !isGameStarted || isDying) return;
-
         let direction = null;
-        if (e.key === "ArrowUp" || e.code === "ArrowUp") direction = "Up";
-        if (e.key === "ArrowDown" || e.code === "ArrowDown") direction = "Down";
-        if (e.key === "ArrowLeft" || e.code === "ArrowLeft") direction = "Left";
-        if (e.key === "ArrowRight" || e.code === "ArrowRight") direction = "Right";
+        if (e.key === "ArrowUp" || e.code === "KeyW") direction = "Up";
+        if (e.key === "ArrowDown" || e.code === "KeyS") direction = "Down";
+        if (e.key === "ArrowLeft" || e.code === "KeyA") direction = "Left";
+        if (e.key === "ArrowRight" || e.code === "KeyD") direction = "Right";
 
         if (direction) {
-            currentDirection = direction;
-
-            try {
-                await fetch('/Game/Move', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ direction: direction })
-                });
-
-                await fetchGameState();
-            } catch (err) {
-                console.error("Erro ao mover:", err);
-            }
+            sendMoveRequest(direction);
         }
     });
+
+    // --- CONTROLE POR GESTOS DE TOQUE (MOBILE) ---
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    canvas.addEventListener("touchstart", (e) => {
+        initAudio();
+        if (e.touches.length > 0) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }
+        if (!isGameStarted || checkGameEnd()) {
+            handleStartOrRestart();
+        }
+    }, { passive: true });
+
+    canvas.addEventListener("touchend", (e) => {
+        if (!touchStartX || !touchStartY || !isGameStarted) return;
+
+        let touchEndX = e.changedTouches[0].clientX;
+        let touchEndY = e.changedTouches[0].clientY;
+
+        let dx = touchEndX - touchStartX;
+        let dy = touchEndY - touchStartY;
+
+        if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+            if (Math.abs(dx) > Math.abs(dy)) {
+                sendMoveRequest(dx > 0 ? "Right" : "Left");
+            } else {
+                sendMoveRequest(dy > 0 ? "Down" : "Up");
+            }
+        }
+
+        touchStartX = 0;
+        touchStartY = 0;
+    }, { passive: true });
 
     // --- LOOP PRINCIPAL DE RENDERIZAÇÃO ---
     function renderLoop() {
@@ -765,6 +875,7 @@
         drawGhosts();
         drawHUD();
 
+        drawParticles();
         drawFloatingTexts();
 
         if (!isGameStarted) {
@@ -788,7 +899,7 @@
 
     init();
 
-    // Polling contínuo travado durante a morte do jogador
+    // Polling contínuo para atualizar o estado no backend
     setInterval(async () => {
         if (!isGameStarted || isDying) return;
 

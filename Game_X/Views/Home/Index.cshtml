@@ -4,26 +4,23 @@
 
 <link rel="stylesheet" href="~/css/Game.css" />
 
-<div class="arcade-wrapper">
-    <!-- Gabinete de Fliperama -->
+<<div class="arcade-wrapper">
     <div class="arcade-cabinet">
 
-        <!-- Marquee / Título Superior Iluminado -->
+        <!-- 1. Cabeçalho -->
         <div class="arcade-header">
             <h1 class="pacman-title">PAC-MAN 2.0</h1>
         </div>
 
-        <!-- Bezel / Moldura Interna da Tela -->
-        <div class="arcade-screen-frame">
-            <canvas id="gameCanvas" width="600" height="300"></canvas>
-            <!-- Efeito de vidro refletivo em cima do jogo -->
-            <div class="screen-glare"></div>
+        <!-- 2. Tela do Jogo -->
+        <div class="arcade-screen-frame screen-glare">
+            <canvas id="gameCanvas" width="840" height="600"></canvas>
+        </div>
 
-        <!-- Painel de Controle (Joystick + Botões) -->
+        <!-- 3. Painel de Controle (Fica abaixo da tela) -->
         <div class="control-panel">
             <div class="joystick-container">
                 <div class="joystick-base"></div>
-                <div class="joystick-stick"></div>
                 <div class="joystick-ball"></div>
             </div>
 
@@ -32,14 +29,12 @@
                 <div class="btn btn-yellow"></div>
                 <div class="btn btn-blue"></div>
             </div>
-        </div>
 
-        <!-- Entrada de Moedas / Coin Slot -->
-        <div class="coin-door">
-            <div class="coin-slot">25¢ INSERT COIN</div>
+            <div class="coin-slot">
+                25¢<br>INSERT COIN
+            </div>
         </div>
 
     </div>
 </div>
-
 <script src="~/js/Game.js"></script>
