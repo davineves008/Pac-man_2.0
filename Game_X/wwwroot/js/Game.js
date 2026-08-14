@@ -12,6 +12,7 @@
     let pulseTime = 0;
     let isFetching = false;
     let animationFrameId = null;
+    let introTimerId = null;
 
     let floatingTexts = [];
     let particles = [];
@@ -96,9 +97,18 @@
         { note: NOTES.B5, duration: 0.30 }
     ];
 
+    function stopIntroTheme() {
+        if (introTimerId) {
+            clearTimeout(introTimerId);
+            introTimerId = null;
+        }
+    }
+
     function playIntroTheme(onComplete) {
         initAudio();
         if (!audioCtx) return;
+
+        stopIntroTheme();
 
         let time = audioCtx.currentTime + 0.05;
 
@@ -122,7 +132,11 @@
         });
 
         if (onComplete) {
-            setTimeout(onComplete, (time - audioCtx.currentTime) * 1000);
+            const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
+            introTimerId = setTimeout(() => {
+                introTimerId = null;
+                onComplete();
+            }, delay);
         }
     }
 
@@ -342,9 +356,11 @@
             if (response.ok) {
                 const data = await response.json();
 
-                if (!gameState && data.width && data.height) {
-                    canvas.width = data.width * tileSize;
-                    canvas.height = data.height * tileSize;
+                if (data.width && data.height) {
+                    const targetWidth = data.width * tileSize;
+                    const targetHeight = data.height * tileSize;
+                    if (canvas.width !== targetWidth) canvas.width = targetWidth;
+                    if (canvas.height !== targetHeight) canvas.height = targetHeight;
                 }
 
                 if (data.player) {
@@ -372,14 +388,19 @@
 
         if (gameState.tiles) {
             gameState.tiles.forEach(tile => {
-                let x = tile.x * tileSize;
-                let y = tile.y * tileSize;
+                let x = (tile.x !== undefined ? tile.x : tile.X) * tileSize;
+                let y = (tile.y !== undefined ? tile.y : tile.Y) * tileSize;
+                let type = tile.type !== undefined ? tile.type : tile.Type;
 
-                if (tile.type === 1 || tile.type === "Wall" || tile.type === "wall") {
+                if (type === 1 || type === "Wall" || type === "wall") {
                     ctx.save();
                     ctx.fillStyle = "#091322";
                     ctx.beginPath();
-                    ctx.roundRect(x, y, tileSize, tileSize, 4);
+                    if (ctx.roundRect) {
+                        ctx.roundRect(x, y, tileSize, tileSize, 4);
+                    } else {
+                        ctx.rect(x, y, tileSize, tileSize);
+                    }
                     ctx.fill();
 
                     ctx.strokeStyle = "#1e90ff";
@@ -609,7 +630,6 @@
                 ghost.isFrightened || ghost.IsFrightened;
 
             if (isFrightened) {
-                // Pisca no final do tempo assustado
                 let isFlashing = Math.floor(pulseTime * 6) % 2 === 0;
                 ghostColor = isFlashing ? "#ffffff" : "#0000FF";
             }
@@ -633,10 +653,11 @@
             let eyeOffsetX = 0;
             let eyeOffsetY = 0;
 
-            if (ghost.direction === "Left") eyeOffsetX = -2;
-            if (ghost.direction === "Right") eyeOffsetX = 2;
-            if (ghost.direction === "Up") eyeOffsetY = -2;
-            if (ghost.direction === "Down") eyeOffsetY = 2;
+            let dir = ghost.direction || ghost.Direction;
+            if (dir === "Left") eyeOffsetX = -2;
+            if (dir === "Right") eyeOffsetX = 2;
+            if (dir === "Up") eyeOffsetY = -2;
+            if (dir === "Down") eyeOffsetY = 2;
 
             if (!isFrightened) {
                 ctx.fillStyle = "#ffffff";
@@ -796,7 +817,7 @@
                     isGameStarted = true;
                 });
 
-                requestAnimationFrame(renderLoop);
+                startRenderLoop();
             } catch (err) {
                 console.error("Erro ao reiniciar jogo:", err);
             }
@@ -891,23 +912,31 @@
         animationFrameId = requestAnimationFrame(renderLoop);
     }
 
-    // --- INICIALIZAÇÃO E POLLING ---
+    function startRenderLoop() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+        animationFrameId = requestAnimationFrame(renderLoop);
+    }
+
+    // --- INICIALIZAÇÃO E POLLING (USANDO RECURSÃO CONTROLADA) ---
+    async function pollingLoop() {
+        if (isGameStarted && !isDying) {
+            let status = gameState ? (gameState.status !== undefined ? gameState.status : gameState.Status) : null;
+
+            if (status !== "GameOver" && status !== 2 && status !== "gameOver" &&
+                status !== "Victory" && status !== 3 && status !== "victory") {
+                await fetchGameState();
+            }
+        }
+        setTimeout(pollingLoop, 250);
+    }
+
     async function init() {
         await fetchGameState();
-        renderLoop();
+        startRenderLoop();
+        pollingLoop();
     }
 
     init();
-
-    // Polling contínuo para atualizar o estado no backend
-    setInterval(async () => {
-        if (!isGameStarted || isDying) return;
-
-        let status = gameState ? (gameState.status !== undefined ? gameState.status : gameState.Status) : null;
-
-        if (status !== "GameOver" && status !== 2 && status !== "gameOver" &&
-            status !== "Victory" && status !== 3 && status !== "victory") {
-            await fetchGameState();
-        }
-    }, 250);
 });
