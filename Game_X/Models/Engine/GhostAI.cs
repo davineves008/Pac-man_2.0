@@ -15,25 +15,21 @@ namespace Game_X.Models.Engine
             // 1. SISTEMA DE SAÍDA OBRIGATÓRIA DA CASINHA
             if (ghost.Y >= 12 || (ghost.Y >= doorY && !CanGhostMove(ghost.X, ghost.Y - 1, map)))
             {
-                // Se estiver abaixo da linha da casinha (Y > 12), sobe
                 if (ghost.Y > 12 && CanGhostMove(ghost.X, ghost.Y - 1, map))
                 {
                     return Direction.Up;
                 }
 
-                // Se estiver à esquerda do vão (X < 13), ANDA PARA A DIREITA!
                 if (ghost.X < doorX && CanGhostMove(ghost.X + 1, ghost.Y, map))
                 {
                     return Direction.Right;
                 }
 
-                // Se estiver à direita do vão (X > 13), andaria para a esquerda
                 if (ghost.X > doorX && CanGhostMove(ghost.X - 1, ghost.Y, map))
                 {
                     return Direction.Left;
                 }
 
-                // Quando chegar em X = 13 e o caminho acima estiver livre, SOBE!
                 if (CanGhostMove(ghost.X, ghost.Y - 1, map))
                 {
                     return Direction.Up;
@@ -67,22 +63,41 @@ namespace Game_X.Models.Engine
                 return possibleDirections[index];
             }
 
-            // 4. MODO PERSEGUIÇÃO
+            // 4. MODO PERSEGUIÇÃO VS MODO DISPERSÃO (SCATTER)
+            // Ciclo de 12 segundos: 7s perseguindo e 5s dispersando para o canto do mapa
+            int currentSecond = DateTime.Now.Second % 12;
+            bool isScatterTime = currentSecond >= 7;
+
+            int targetX;
+            int targetY;
+
+            if (isScatterTime)
+            {
+                // No modo dispersão, o fantasma foca no canto superior esquerdo (0,0)
+                // Se quiser alterar o tempo de dispersão, basta mudar a condição 'currentSecond >= 7'
+                targetX = 0;
+                targetY = 0;
+            }
+            else
+            {
+                // No modo perseguição, foca na posição atual do jogador
+                targetX = player.X;
+                targetY = player.Y;
+            }
+
             return possibleDirections
-                .OrderBy(dir => GetDistanceAfterMove(ghost.X, ghost.Y, dir, player.X, player.Y))
+                .OrderBy(dir => GetDistanceAfterMove(ghost.X, ghost.Y, dir, targetX, targetY))
                 .First();
         }
-        // Auxiliar para testar se a posição (x, y) é caminhável
+
         private static bool CanGhostMove(int x, int y, GameMap map)
         {
-            // Permite navegação pelos limites/túneis laterais
             if (x < 0 || x >= map.Width || y < 0 || y >= map.Height)
                 return true;
 
             return map.Tiles[x, y].Type != TileType.Wall;
         }
 
-        // Auxiliar para calcular a distância ao quadrado até o destino
         private static double GetDistanceAfterMove(int x, int y, Direction dir, int targetX, int targetY)
         {
             switch (dir)

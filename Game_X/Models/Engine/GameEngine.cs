@@ -1,6 +1,7 @@
 ﻿using Game_X.Models.Entities;
 using Game_X.Models.Enums;
 using Game_X.Models.Map;
+using Game_X.Models.Map.PacManMVC.Models.Map;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +14,7 @@ namespace Game_X.Models.Engine
         public int Y { get; set; } = 17;
         public bool Active { get; set; } = false;
         public int Type { get; set; } = 0;
-        public DateTime? ExpiresAt { get; set; } // Adicionado controle de tempo
+        public DateTime? ExpiresAt { get; set; }
 
         public int Points => Type switch
         {
@@ -34,8 +35,16 @@ namespace Game_X.Models.Engine
         public DateTime StartedAt { get; set; }
         public BonusFruit BonusFruit { get; set; }
 
+        // --- GERENCIAMENTO DE FASES / MAPAS ---
+        public int CurrentLevel { get; private set; } = 1;
+        private const int MaxLevels = 3;
+
         private int _coinsCollectedCount = 0;
-        private int _ghostsEatenInPowerMode = 0; // Combo de pontos para fantasmas
+        private int _ghostsEatenInPowerMode = 0;
+
+        // --- CONTROLE DE VELOCIDADE DOS FANTASMAS ---
+        private DateTime _lastGhostMove = DateTime.Now;
+        public TimeSpan GhostMoveInterval { get; set; } = TimeSpan.FromMilliseconds(350);
 
         public GameEngine(Player player, List<Ghost> ghosts, GameMap map)
         {
@@ -92,7 +101,7 @@ namespace Game_X.Models.Engine
             if (Status != GameStatus.Playing)
                 return;
 
-            // Desativa a fruta bônus se o tempo expirar (10 segundos)
+            // Desativa a fruta bônus se o tempo expirar
             if (BonusFruit.Active && BonusFruit.ExpiresAt.HasValue && DateTime.Now >= BonusFruit.ExpiresAt.Value)
             {
                 BonusFruit.Active = false;
@@ -102,7 +111,7 @@ namespace Game_X.Models.Engine
             if (Player.Powered && DateTime.Now >= Player.PowerUntil)
             {
                 Player.Powered = false;
-                _ghostsEatenInPowerMode = 0; // Reseta o combo
+                _ghostsEatenInPowerMode = 0;
 
                 foreach (var ghost in Ghosts)
                 {
@@ -111,7 +120,16 @@ namespace Game_X.Models.Engine
                 }
             }
 
-            MoveGhosts();
+            // Movimentação temporizada dos fantasmas
+            TimeSpan currentInterval = Player.Powered
+                ? TimeSpan.FromMilliseconds(GhostMoveInterval.TotalMilliseconds * 1.5)
+                : GhostMoveInterval;
+
+            if (DateTime.Now - _lastGhostMove >= currentInterval)
+            {
+                MoveGhosts();
+                _lastGhostMove = DateTime.Now;
+            }
         }
 
         public void MoveGhosts()
@@ -196,7 +214,7 @@ namespace Game_X.Models.Engine
                 BonusFruit.Type = 0;
 
             BonusFruit.Active = true;
-            BonusFruit.ExpiresAt = DateTime.Now.AddSeconds(10); // Fruta dura 10 segundos no mapa
+            BonusFruit.ExpiresAt = DateTime.Now.AddSeconds(10);
         }
 
         private void CollectFruit()
@@ -224,7 +242,7 @@ namespace Game_X.Models.Engine
             pellet.Collected = true;
             Player.Powered = true;
             Player.PowerUntil = DateTime.Now.AddSeconds(pellet.DurationSeconds);
-            _ghostsEatenInPowerMode = 0; // Reseta combo para a nova fruta de poder
+            _ghostsEatenInPowerMode = 0;
 
             foreach (var ghost in Ghosts)
             {
@@ -245,7 +263,6 @@ namespace Game_X.Models.Engine
                     ghost.State = GhostState.Dead;
                     ghost.Reset();
 
-                    // Multiplicador de combo: 200, 400, 800, 1600...
                     _ghostsEatenInPowerMode++;
                     int bonusPoints = (int)Math.Pow(2, _ghostsEatenInPowerMode) * 100;
                     Player.Score += bonusPoints;
@@ -272,7 +289,6 @@ namespace Game_X.Models.Engine
                         }
                     }
 
-                    // Interrompe o loop após atingir o jogador para evitar danos múltiplos
                     break;
                 }
             }
@@ -280,9 +296,41 @@ namespace Game_X.Models.Engine
 
         private void CheckVictory()
         {
+            // Se todas as moedas do mapa atual foram coletadas
             if (Map.Coins.All(c => c.Collected))
             {
+                AdvanceToNextLevel();
+            }
+        }
+
+        private void AdvanceToNextLevel()
+        {
+            CurrentLevel++;
+
+            if (CurrentLevel > MaxLevels)
+            {
+                // Zerou todos os mapas disponíveis
                 Status = GameStatus.Victory;
+            }
+            else
+            {
+                // Carrega o mapa da próxima fase
+                Map = MapLoader.Load(CurrentLevel);
+
+                // Reposiciona o jogador e os fantasmas para as posições iniciais do novo mapa
+                Player.X = Map.PlayerSpawn.X;
+                Player.Y = Map.PlayerSpawn.Y;
+
+                for (int i = 0; i < Ghosts.Count && i < Map.GhostSpawns.Count; i++)
+                {
+                    Ghosts[i].X = Map.GhostSpawns[i].X;
+                    Ghosts[i].Y = Map.GhostSpawns[i].Y;
+                }
+
+                // Reseta estado dos itens e bônus da rodada
+                _coinsCollectedCount = 0;
+                BonusFruit.Active = false;
+                Player.Powered = false;
             }
         }
     }
