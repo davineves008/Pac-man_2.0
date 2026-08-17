@@ -2,7 +2,7 @@
   "routes": [
     {
       "src": "/",
-      "dest": "/Home/index.cshtml"
+      "dest": "/Game_X/Views/Home/Index.cshtml"
     }
   ]
 }
