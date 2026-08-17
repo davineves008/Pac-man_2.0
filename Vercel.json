@@ -1,8 +1,0 @@
-﻿{
-  "routes": [
-    {
-      "src": "/",
-      "dest": "/Game_X/Views/Home/Index.cshtml"
-    }
-  ]
-}
