@@ -1,10 +1,10 @@
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllersWithViews();
+// Configura apenas o suporte a Controllers de API
+builder.Services.AddControllers();
 
 // =============================
-// Habilitar Session
+// Configuração da Session
 // =============================
 builder.Services.AddDistributedMemoryCache();
 
@@ -17,7 +17,6 @@ builder.Services.AddSession(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -26,19 +25,23 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// =============================
+// Servir Arquivos Estáticos (index.html, JS, CSS)
+// =============================
+// 1. Procura por padrão por arquivos como "index.html" na pasta wwwroot
+app.UseDefaultFiles();
+
+// 2. Permite o download de arquivos estáticos (.html, .css, .js)
 app.UseStaticFiles();
 
 app.UseRouting();
 
-// =============================
-// Habilitar Session
-// =============================
+// O UseSession DEVE vir entre UseRouting e UseAuthorization/MapControllers
 app.UseSession();
 
 app.UseAuthorization();
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+// Mapeia as rotas dos seus Controllers (como [Route("Game/State")])
+app.MapControllers();
 
 app.Run();
