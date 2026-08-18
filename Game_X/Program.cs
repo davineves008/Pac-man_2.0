@@ -1,13 +1,11 @@
+using Microsoft.Extensions.FileProviders;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Configura apenas o suporte a Controllers de API
 builder.Services.AddControllers();
 
-// =============================
 // Configuração da Session
-// =============================
 builder.Services.AddDistributedMemoryCache();
-
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromHours(1);
@@ -25,23 +23,24 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// =============================
-// Servir Arquivos Estáticos (index.html, JS, CSS)
-// =============================
-// 1. Procura por padrão por arquivos como "index.html" na pasta wwwroot
-app.UseDefaultFiles();
+// Procura por index.html na raiz do projeto
+app.UseDefaultFiles(new DefaultFilesOptions
+{
+    FileProvider = new PhysicalFileProvider(builder.Environment.ContentRootPath),
+    RequestPath = ""
+});
 
-// 2. Permite o download de arquivos estáticos (.html, .css, .js)
-app.UseStaticFiles();
+// Libera os arquivos estáticos da raiz (incluindo as pastas /cs, /js e index.html)
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(builder.Environment.ContentRootPath),
+    RequestPath = ""
+});
 
 app.UseRouting();
-
-// O UseSession DEVE vir entre UseRouting e UseAuthorization/MapControllers
 app.UseSession();
-
 app.UseAuthorization();
 
-// Mapeia as rotas dos seus Controllers (como [Route("Game/State")])
 app.MapControllers();
 
 app.Run();
