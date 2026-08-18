@@ -7,22 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="cs\" />
-    <Folder Include="js\" />
+    <Content Include="cs\Game.css">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="js\Game.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\css\Game.css" />
-    <None Include="wwwroot\js\Game.js" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Update="wwwroot\css\Game.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Update="wwwroot\js\Game.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Folder Include="wwwroot\css\" />
+    <Folder Include="wwwroot\js\" />
   </ItemGroup>
 
 </Project>
