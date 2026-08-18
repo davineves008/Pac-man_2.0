@@ -1,11 +1,13 @@
-using Microsoft.Extensions.FileProviders;
-
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// Add services to the container.
+builder.Services.AddControllersWithViews();
 
-// Configuração da Session
+// =============================
+// Habilitar Session
+// =============================
 builder.Services.AddDistributedMemoryCache();
+
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromHours(1);
@@ -15,6 +17,7 @@ builder.Services.AddSession(options =>
 
 var app = builder.Build();
 
+// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -23,24 +26,19 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Procura por index.html na raiz do projeto
-app.UseDefaultFiles(new DefaultFilesOptions
-{
-    FileProvider = new PhysicalFileProvider(builder.Environment.ContentRootPath),
-    RequestPath = ""
-});
-
-// Libera os arquivos estáticos da raiz (incluindo as pastas /cs, /js e index.html)
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(builder.Environment.ContentRootPath),
-    RequestPath = ""
-});
+app.UseStaticFiles();
 
 app.UseRouting();
+
+// =============================
+// Habilitar Session
+// =============================
 app.UseSession();
+
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
