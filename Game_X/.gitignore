@@ -1,0 +1,26 @@
+﻿# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET
+bin/
+obj/
+
+# Logs
+*.log
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Configurações locais
+.env
+.env.*
+appsettings.Development.json
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
