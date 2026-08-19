@@ -1,0 +1,50 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man 2.0</title>
+
+    <!-- Caminho relativo para o CSS -->
+    <link rel="stylesheet" href="cs/Game.css" />
+</head>
+<body>
+
+    <div class="arcade-wrapper">
+        <div class="arcade-cabinet">
+
+            <!-- 1. Cabeçalho -->
+            <div class="arcade-header">
+                <h1 class="pacman-title">PAC-MAN 2.0</h1>
+            </div>
+
+            <!-- 2. Tela do Jogo -->
+            <div class="arcade-screen-frame screen-glare">
+                <canvas id="gameCanvas" width="840" height="600"></canvas>
+            </div>
+
+            <!-- 3. Painel de Controle (Fica abaixo da tela) -->
+            <div class="control-panel">
+                <div class="joystick-container">
+                    <div class="joystick-base"></div>
+                    <div class="joystick-ball"></div>
+                </div>
+
+                <div class="arcade-buttons">
+                    <div class="btn btn-red"></div>
+                    <div class="btn btn-yellow"></div>
+                    <div class="btn btn-blue"></div>
+                </div>
+
+                <div class="coin-slot">
+                    25¢<br>INSERT COIN
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Caminho relativo para o JavaScript -->
+    <script src="js/Game.js"></script>
+</body>
+</html>

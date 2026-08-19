@@ -1,0 +1,190 @@
+/* 1. Garante fundo escuro na página toda */
+body {
+    background-color: #050508 !important;
+    margin: 0;
+    padding: 0;
+}
+
+.arcade-wrapper {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 100vh !important;
+    background-color: #050508 !important;
+    width: 100% !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+}
+
+/* 2. Gabinete ajustado exatamente à largura do Canvas */
+.arcade-cabinet {
+    background: linear-gradient(180deg, #12131a 0%, #08080d 100%) !important;
+    border: 4px solid #1e90ff !important;
+    border-radius: 20px !important;
+    padding: 20px !important;
+    box-shadow: 0 0 30px rgba(30, 144, 255, 0.4) !important;
+    /* EMPILHAMENTO VERTICAL */
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    /* ABRAÇA O TMANHO DO CANVAS */
+    width: fit-content !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+}
+
+/* 3. Cabeçalho centralizado e proporcional */
+.arcade-header {
+    background: #000000 !important;
+    border: 3px solid #ffe600 !important;
+    padding: 8px 30px !important;
+    border-radius: 8px !important;
+    margin-bottom: 15px !important;
+    box-shadow: 0 0 15px rgba(255, 230, 0, 0.6) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+}
+
+    /* FORÇA A COR AMARELA E O BRILHO NO TÍTULO */
+    .arcade-header h1,
+    .arcade-header h1.pacman-title,
+    h1.pacman-title {
+        color: #FFE600 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        text-shadow: 0 0 5px #FFE600, 0 0 10px #FFE600, 0 0 20px #FFB703, 0 0 30px #FF8C00 !important;
+        -webkit-text-fill-color: #FFE600 !important;
+        margin: 0 !important;
+    }
+
+/* 4. Moldura da tela com fundo preto */
+.arcade-screen-frame {
+    background-color: #000000 !important;
+    padding: 10px !important;
+    border-radius: 12px !important;
+    border: 3px solid #222 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Regra importante para o Canvas não ultrapassar a moldura */
+#gameCanvas, canvas {
+    display: block !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* Efeito de listras (Scanlines) CRT */
+.screen-glare {
+    position: relative !important; /* IMPORTANTE para prender o efeito à tela */
+}
+
+    .screen-glare::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient( rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50% );
+        background-size: 100% 4px;
+        pointer-events: none;
+        border-radius: 8px;
+    }
+
+/* 5. Painel de Controle alinhado abaixo do jogo */
+.control-panel {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin-top: 15px !important;
+    background: #1e2029 !important;
+    border: 2px solid #333644 !important;
+    padding: 12px 20px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+}
+
+/* Base do Joystick */
+.joystick-container {
+    position: relative !important;
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.joystick-base {
+    width: 36px !important;
+    height: 36px !important;
+    background: #111116 !important;
+    border-radius: 50% !important;
+    border: 2px solid #555 !important;
+}
+
+.joystick-ball {
+    position: absolute !important;
+    top: -6px !important;
+    width: 22px !important;
+    height: 22px !important;
+    background: #ff0055 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 10px #ff0055 !important;
+}
+
+/* Botões do Fliperama */
+.arcade-buttons {
+    display: flex !important;
+    gap: 12px !important;
+}
+
+.btn {
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 50% !important;
+    border: 2px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+.btn-red {
+    background: #ff0055 !important;
+    box-shadow: 0 0 8px #ff0055 !important;
+}
+
+.btn-yellow {
+    background: #ffe600 !important;
+    box-shadow: 0 0 8px #ffe600 !important;
+}
+
+.btn-blue {
+    background: #00d2ff !important;
+    box-shadow: 0 0 8px #00d2ff !important;
+}
+
+/* Texto de Moeda e Animação */
+.coin-slot {
+    color: #ffb703 !important;
+    font-family: 'Courier New', monospace !important;
+    font-weight: bold !important;
+    font-size: 12px !important;
+    text-shadow: 0 0 6px #ffb703 !important;
+    text-align: center !important;
+    animation: blink 1.2s infinite;
+}
+
+@keyframes blink {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
